@@ -73,7 +73,7 @@ const updateNote = async (req, res) => {
     }
 
     const updatedNote = await Note.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
+      returnDocument: "after",
     });
 
     logger.info(`Note updated by user: ${req.user.email}`);
