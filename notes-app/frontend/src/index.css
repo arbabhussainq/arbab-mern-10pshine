@@ -1,9 +1,109 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
+:root {
+  --font: 'Inter', sans-serif;
+
+  /* Light mode */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f7f7f5;
+  --bg-tertiary: #efeeec;
+  --bg-hover: #f0f0ee;
+
+  --text-primary: #1a1a1a;
+  --text-secondary: #6b6b6b;
+  --text-tertiary: #999999;
+  --text-placeholder: #bbbbbb;
+
+  --border-primary: #e5e5e3;
+  --border-secondary: #d4d4d2;
+
+  --accent: #2f2f2f;
+  --accent-hover: #1a1a1a;
+
+  --danger: #e03e3e;
+  --danger-hover: #c53030;
+
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --sidebar-width: 240px;
+  --topbar-height: 52px;
+  --transition: all 0.15s ease;
+}
+
+[data-theme='dark'] {
+  --bg-primary: #191919;
+  --bg-secondary: #1f1f1f;
+  --bg-tertiary: #2a2a2a;
+  --bg-hover: #252525;
+
+  --text-primary: #e8e8e6;
+  --text-secondary: #999999;
+  --text-tertiary: #666666;
+  --text-placeholder: #444444;
+
+  --border-primary: #2e2e2e;
+  --border-secondary: #3a3a3a;
+
+  --accent: #e8e8e6;
+  --accent-hover: #ffffff;
+
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.2);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.3);
+}
+
 body {
-  font-family: sans-serif;
+  font-family: var(--font);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+button {
+  font-family: var(--font);
+  cursor: pointer;
+  border: none;
+  outline: none;
+  background: none;
+}
+
+input, textarea {
+  font-family: var(--font);
+  outline: none;
+  border: none;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-secondary);
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-tertiary);
 }
