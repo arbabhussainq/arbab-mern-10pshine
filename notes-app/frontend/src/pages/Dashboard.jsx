@@ -11,27 +11,20 @@ import {
   StickyNote,
   X,
   Menu,
+  Pin,
+  PinOff,
+  RotateCcw,
 } from "lucide-react";
 import useAuth from "../hooks/useAuth";
 import useTheme from "../hooks/useTheme";
 import { notesService } from "../services/notesService";
 import NoteEditor from "./NoteEditor";
 
-const NOTE_COLORS = [
-  "#ffffff",
-  "#f5f0ff",
-  "#fff8e6",
-  "#e8f5e9",
-  "#e3f2fd",
-  "#fce4ec",
-  "#f3e5f5",
-  "#e0f7fa",
-];
-
 const Dashboard = () => {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [notes, setNotes] = useState([]);
+  const [trashNotes, setTrashNotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [activeSection, setActiveSection] = useState("all");
@@ -39,20 +32,42 @@ const Dashboard = () => {
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
+  useEffect(() => {
+    const loadNotes = async () => {
+      try {
+        const data = await notesService.getNotes();
+        setNotes(data);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadNotes();
+  }, []);
+
   const fetchNotes = async () => {
     try {
       const data = await notesService.getNotes();
       setNotes(data);
     } catch (err) {
       console.error(err);
-    } finally {
-      setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchNotes();
-  }, []);
+  const fetchTrash = async () => {
+    try {
+      const data = await notesService.getTrashNotes();
+      setTrashNotes(data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSectionChange = (section) => {
+    setActiveSection(section);
+    if (section === "trash") fetchTrash();
+  };
 
   const handleNewNote = () => {
     setSelectedNote(null);
@@ -82,22 +97,52 @@ const Dashboard = () => {
     }
   };
 
-  const handleDeleteNote = async (id, e) => {
-    e.stopPropagation();
+  const handleSoftDelete = async (id, e) => {
+    if (e) e.stopPropagation();
     try {
-      await notesService.deleteNote(id);
+      await notesService.updateNote(id, { deleted: true });
       setNotes(notes.filter((n) => n._id !== id));
     } catch (err) {
       console.error(err);
     }
   };
 
+  const handleRestore = async (id) => {
+    try {
+      await notesService.updateNote(id, { deleted: false });
+      setTrashNotes(trashNotes.filter((n) => n._id !== id));
+      fetchNotes();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handlePermanentDelete = async (id) => {
+    try {
+      await notesService.deleteNote(id);
+      setTrashNotes(trashNotes.filter((n) => n._id !== id));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const handleTogglePin = async (note, e) => {
-    e.stopPropagation();
+    if (e) e.stopPropagation();
     try {
       const updated = await notesService.updateNote(note._id, {
-        ...note,
         pinned: !note.pinned,
+      });
+      setNotes(notes.map((n) => (n._id === updated._id ? updated : n)));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleToggleFavourite = async (note, e) => {
+    if (e) e.stopPropagation();
+    try {
+      const updated = await notesService.updateNote(note._id, {
+        favourited: !note.favourited,
       });
       setNotes(notes.map((n) => (n._id === updated._id ? updated : n)));
     } catch (err) {
@@ -109,8 +154,7 @@ const Dashboard = () => {
     const matchesSearch =
       note.title.toLowerCase().includes(search.toLowerCase()) ||
       note.content.toLowerCase().includes(search.toLowerCase());
-    if (activeSection === "favourites") return matchesSearch && note.pinned;
-    if (activeSection === "trash") return false;
+    if (activeSection === "favourites") return matchesSearch && note.favourited;
     return matchesSearch;
   });
 
@@ -125,12 +169,6 @@ const Dashboard = () => {
     if (date.toDateString() === today.toDateString()) return "Today";
     if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  };
-
-  const stripHtml = (html) => {
-    const tmp = document.createElement("div");
-    tmp.innerHTML = html;
-    return tmp.textContent || tmp.innerText || "";
   };
 
   return (
@@ -148,7 +186,6 @@ const Dashboard = () => {
             <NotebookPen size={18} strokeWidth={1.5} />
             <span style={styles.logoText}>Noted</span>
           </div>
-
           <nav style={styles.nav}>
             {[
               {
@@ -173,13 +210,12 @@ const Dashboard = () => {
                   ...styles.navItem,
                   ...(activeSection === item.id ? styles.navItemActive : {}),
                 }}
-                onClick={() => setActiveSection(item.id)}>
+                onClick={() => handleSectionChange(item.id)}>
                 {item.icon}
                 {item.label}
               </button>
             ))}
           </nav>
-
           <div style={styles.sidebarBottom}>
             <button style={styles.themeBtn} onClick={toggleTheme}>
               {theme === "light" ?
@@ -204,9 +240,8 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Main content */}
+      {/* Main */}
       <div style={styles.main}>
-        {/* Topbar */}
         <div style={styles.topbar}>
           <div style={styles.topbarLeft}>
             <button
@@ -239,108 +274,155 @@ const Dashboard = () => {
                 style={styles.searchInput}
               />
             </div>
-            <button style={styles.newBtn} onClick={handleNewNote}>
-              <Plus size={15} strokeWidth={1.5} />
-              New note
-            </button>
+            {activeSection !== "trash" && (
+              <button style={styles.newBtn} onClick={handleNewNote}>
+                <Plus size={15} strokeWidth={1.5} />
+                New note
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Notes grid */}
         <div style={styles.content}>
-          {loading ?
-            <div style={styles.empty}>Loading your notes...</div>
-          : filteredNotes.length === 0 ?
-            <div style={styles.emptyState}>
-              <StickyNote
-                size={32}
-                strokeWidth={1}
-                color="var(--text-tertiary)"
-              />
-              <p style={styles.emptyTitle}>No notes yet</p>
-              <p style={styles.emptySubtitle}>
-                Click "New note" to get started
-              </p>
-            </div>
-          : <>
-              {pinnedNotes.length > 0 && (
-                <>
-                  <p style={styles.sectionLabel}>Pinned</p>
-                  <div style={styles.grid}>
-                    {pinnedNotes.map((note) => (
-                      <NoteCard
-                        key={note._id}
-                        note={note}
-                        onEdit={handleEditNote}
-                        onDelete={handleDeleteNote}
-                        onPin={handleTogglePin}
-                        formatDate={formatDate}
-                        stripHtml={stripHtml}
-                      />
-                    ))}
-                  </div>
-                </>
-              )}
-              {unpinnedNotes.length > 0 && (
-                <>
-                  {pinnedNotes.length > 0 && (
-                    <p style={styles.sectionLabel}>Other notes</p>
-                  )}
-                  <div style={styles.grid}>
-                    {unpinnedNotes.map((note) => (
-                      <NoteCard
-                        key={note._id}
-                        note={note}
-                        onEdit={handleEditNote}
-                        onDelete={handleDeleteNote}
-                        onPin={handleTogglePin}
-                        formatDate={formatDate}
-                        stripHtml={stripHtml}
-                      />
-                    ))}
-                    <button style={styles.newCard} onClick={handleNewNote}>
-                      <Plus
-                        size={18}
-                        strokeWidth={1.5}
-                        color="var(--text-tertiary)"
-                      />
-                      <span
-                        style={{
-                          fontSize: "13px",
-                          color: "var(--text-tertiary)",
-                        }}>
-                        New note
-                      </span>
-                    </button>
-                  </div>
-                </>
-              )}
-            </>
-          }
+          {/* Trash section */}
+          {activeSection === "trash" &&
+            (trashNotes.length === 0 ?
+              <div style={styles.emptyState}>
+                <Trash2
+                  size={32}
+                  strokeWidth={1}
+                  color="var(--text-tertiary)"
+                />
+                <p style={styles.emptyTitle}>Trash is empty</p>
+                <p style={styles.emptySubtitle}>
+                  Deleted notes will appear here
+                </p>
+              </div>
+            : <>
+                <p style={styles.sectionLabel}>Deleted notes</p>
+                <div style={styles.grid}>
+                  {trashNotes.map((note) => (
+                    <TrashCard
+                      key={note._id}
+                      note={note}
+                      onRestore={handleRestore}
+                      onDelete={handlePermanentDelete}
+                      formatDate={formatDate}
+                    />
+                  ))}
+                </div>
+              </>)}
+
+          {/* All notes / Favourites */}
+          {activeSection !== "trash" &&
+            (loading ?
+              <div style={styles.emptyState}>
+                <p style={styles.emptySubtitle}>Loading your notes...</p>
+              </div>
+            : filteredNotes.length === 0 ?
+              <div style={styles.emptyState}>
+                <StickyNote
+                  size={32}
+                  strokeWidth={1}
+                  color="var(--text-tertiary)"
+                />
+                <p style={styles.emptyTitle}>
+                  {activeSection === "favourites" ?
+                    "No favourites yet"
+                  : "No notes yet"}
+                </p>
+                <p style={styles.emptySubtitle}>
+                  {activeSection === "favourites" ?
+                    "Star a note to add it here"
+                  : 'Click "New note" to get started'}
+                </p>
+              </div>
+            : <>
+                {pinnedNotes.length > 0 && (
+                  <>
+                    <p style={styles.sectionLabel}>Pinned</p>
+                    <div style={styles.grid}>
+                      {pinnedNotes.map((note) => (
+                        <NoteCard
+                          key={note._id}
+                          note={note}
+                          onEdit={handleEditNote}
+                          onDelete={handleSoftDelete}
+                          onPin={handleTogglePin}
+                          onFavourite={handleToggleFavourite}
+                          formatDate={formatDate}
+                        />
+                      ))}
+                    </div>
+                  </>
+                )}
+                {unpinnedNotes.length > 0 && (
+                  <>
+                    {pinnedNotes.length > 0 && (
+                      <p style={styles.sectionLabel}>Other notes</p>
+                    )}
+                    <div style={styles.grid}>
+                      {unpinnedNotes.map((note) => (
+                        <NoteCard
+                          key={note._id}
+                          note={note}
+                          onEdit={handleEditNote}
+                          onDelete={handleSoftDelete}
+                          onPin={handleTogglePin}
+                          onFavourite={handleToggleFavourite}
+                          formatDate={formatDate}
+                        />
+                      ))}
+                      <button style={styles.newCard} onClick={handleNewNote}>
+                        <Plus
+                          size={18}
+                          strokeWidth={1.5}
+                          color="var(--text-tertiary)"
+                        />
+                        <span
+                          style={{
+                            fontSize: "13px",
+                            color: "var(--text-tertiary)",
+                          }}>
+                          New note
+                        </span>
+                      </button>
+                    </div>
+                  </>
+                )}
+              </>)}
         </div>
       </div>
 
-      {/* Note Editor Modal */}
       {isEditorOpen && (
         <NoteEditor
           note={selectedNote}
           onSave={handleSaveNote}
           onClose={() => setIsEditorOpen(false)}
-          colors={NOTE_COLORS}
+          onDelete={(id) => {
+            handleSoftDelete(id);
+            setIsEditorOpen(false);
+          }}
         />
       )}
     </div>
   );
 };
 
-const NoteCard = ({ note, onEdit, onDelete, onPin, formatDate, stripHtml }) => {
+const NoteCard = ({
+  note,
+  onEdit,
+  onDelete,
+  onPin,
+  onFavourite,
+  formatDate,
+}) => {
   const [hovered, setHovered] = useState(false);
 
   return (
     <div
       style={{
         ...styles.card,
-        background: note.color || "var(--bg-primary)",
         borderColor:
           hovered ? "var(--border-secondary)" : "var(--border-primary)",
       }}
@@ -351,14 +433,29 @@ const NoteCard = ({ note, onEdit, onDelete, onPin, formatDate, stripHtml }) => {
         <h3 style={styles.cardTitle}>{note.title}</h3>
         <div style={{ ...styles.cardActions, opacity: hovered ? 1 : 0 }}>
           <button
-            style={styles.cardBtn}
-            onClick={(e) => onPin(note, e)}
-            title={note.pinned ? "Unpin" : "Pin"}>
+            style={{
+              ...styles.cardBtn,
+              color: note.favourited ? "#e8b84b" : "var(--text-tertiary)",
+            }}
+            onClick={(e) => onFavourite(note, e)}
+            title={note.favourited ? "Unfavourite" : "Favourite"}>
             <Star
               size={13}
               strokeWidth={1.5}
-              fill={note.pinned ? "currentColor" : "none"}
+              fill={note.favourited ? "currentColor" : "none"}
             />
+          </button>
+          <button
+            style={{
+              ...styles.cardBtn,
+              color:
+                note.pinned ? "var(--text-primary)" : "var(--text-tertiary)",
+            }}
+            onClick={(e) => onPin(note, e)}
+            title={note.pinned ? "Unpin" : "Pin"}>
+            {note.pinned ?
+              <PinOff size={13} strokeWidth={1.5} />
+            : <Pin size={13} strokeWidth={1.5} />}
           </button>
           <button
             style={{ ...styles.cardBtn, color: "var(--danger)" }}
@@ -368,10 +465,41 @@ const NoteCard = ({ note, onEdit, onDelete, onPin, formatDate, stripHtml }) => {
           </button>
         </div>
       </div>
-      <p style={styles.cardPreview}>
-        {stripHtml(note.content) || "No additional text"}
-      </p>
+      <p
+        style={styles.cardPreview}
+        dangerouslySetInnerHTML={{
+          __html:
+            note.content ||
+            '<span style="opacity:0.5">No additional text</span>',
+        }}
+      />
       <p style={styles.cardDate}>{formatDate(note.createdAt)}</p>
+    </div>
+  );
+};
+
+const TrashCard = ({ note, onRestore, onDelete, formatDate }) => {
+  return (
+    <div style={{ ...styles.card, opacity: 0.7 }}>
+      <div style={styles.cardHeader}>
+        <h3 style={styles.cardTitle}>{note.title}</h3>
+        <div style={styles.cardActions}>
+          <button
+            style={{ ...styles.cardBtn, color: "var(--text-secondary)" }}
+            onClick={() => onRestore(note._id)}
+            title="Restore">
+            <RotateCcw size={13} strokeWidth={1.5} />
+          </button>
+          <button
+            style={{ ...styles.cardBtn, color: "var(--danger)" }}
+            onClick={() => onDelete(note._id)}
+            title="Delete permanently">
+            <Trash2 size={13} strokeWidth={1.5} />
+          </button>
+        </div>
+      </div>
+      <p style={styles.cardPreview}>{note.content || "No additional text"}</p>
+      <p style={styles.cardDate}>{formatDate(note.updatedAt)}</p>
     </div>
   );
 };
@@ -584,6 +712,7 @@ const styles = {
     padding: "14px",
     cursor: "pointer",
     transition: "border-color 0.15s ease",
+    background: "var(--bg-primary)",
   },
   cardHeader: {
     display: "flex",
@@ -661,10 +790,6 @@ const styles = {
   emptySubtitle: {
     fontSize: "13px",
     color: "var(--text-tertiary)",
-  },
-  empty: {
-    color: "var(--text-tertiary)",
-    fontSize: "14px",
   },
 };
 

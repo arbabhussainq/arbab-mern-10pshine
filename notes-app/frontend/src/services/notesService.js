@@ -22,6 +22,15 @@ export const notesService = {
     }
   },
 
+  getTrashNotes: async () => {
+    try {
+      const res = await API.get("/notes/trash");
+      return res.data;
+    } catch (err) {
+      throw new Error(err.response?.data?.message || "Failed to fetch trash");
+    }
+  },
+
   createNote: async (noteData) => {
     try {
       const res = await API.post("/notes", noteData);
