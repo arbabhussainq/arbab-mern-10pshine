@@ -1,6 +1,6 @@
 import { useContext } from "react";
-import { AuthContext } from "../context/AuthContext";
+import { ThemeContext } from "../context/ThemeContext";
 
-const useAuth = () => useContext(AuthContext);
+const useTheme = () => useContext(ThemeContext);
 
-export default useAuth;
+export default useTheme;
