@@ -107,3 +107,28 @@ a {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-tertiary);
 }
+
+[contenteditable]:empty:before {
+  content: attr(data-placeholder);
+  color: var(--text-placeholder);
+  pointer-events: none;
+}
+
+[contenteditable] ul,
+[contenteditable] ol {
+  padding-left: 24px;
+}
+
+[contenteditable] ul li {
+  list-style-type: disc;
+}
+
+[contenteditable] ol li {
+  list-style-type: decimal;
+}
+
+[contenteditable] hr {
+  border: none;
+  border-top: 1px solid var(--border-primary);
+  margin: 12px 0;
+}
