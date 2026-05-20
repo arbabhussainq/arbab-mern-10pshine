@@ -18,6 +18,7 @@ import {
 import useAuth from "../hooks/useAuth";
 import useTheme from "../hooks/useTheme";
 import { notesService } from "../services/notesService";
+import { tagsService } from "../services/tagsService";
 import NoteEditor from "./NoteEditor";
 
 const Dashboard = () => {
@@ -25,25 +26,32 @@ const Dashboard = () => {
   const { theme, toggleTheme } = useTheme();
   const [notes, setNotes] = useState([]);
   const [trashNotes, setTrashNotes] = useState([]);
+  const [tags, setTags] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [activeSection, setActiveSection] = useState("all");
+  const [activeTag, setActiveTag] = useState(null);
   const [selectedNote, setSelectedNote] = useState(null);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [hoveredTag, setHoveredTag] = useState(null);
 
   useEffect(() => {
-    const loadNotes = async () => {
+    const loadData = async () => {
       try {
-        const data = await notesService.getNotes();
-        setNotes(data);
+        const [notesData, tagsData] = await Promise.all([
+          notesService.getNotes(),
+          tagsService.getTags(),
+        ]);
+        setNotes(notesData);
+        setTags(tagsData);
       } catch (err) {
         console.error(err);
       } finally {
         setLoading(false);
       }
     };
-    loadNotes();
+    loadData();
   }, []);
 
   const fetchNotes = async () => {
@@ -66,7 +74,13 @@ const Dashboard = () => {
 
   const handleSectionChange = (section) => {
     setActiveSection(section);
+    setActiveTag(null);
     if (section === "trash") fetchTrash();
+  };
+
+  const handleTagClick = (tagId) => {
+    setActiveTag(activeTag === tagId ? null : tagId);
+    setActiveSection("all");
   };
 
   const handleNewNote = () => {
@@ -82,15 +96,14 @@ const Dashboard = () => {
   const handleSaveNote = async (noteData) => {
     try {
       if (selectedNote) {
-        const updated = await notesService.updateNote(
-          selectedNote._id,
-          noteData,
-        );
-        setNotes(notes.map((n) => (n._id === updated._id ? updated : n)));
+        await notesService.updateNote(selectedNote._id, noteData);
       } else {
-        const created = await notesService.createNote(noteData);
-        setNotes([created, ...notes]);
+        await notesService.createNote(noteData);
       }
+      // Refetch notes so tags are fully populated (backend returns ObjectIds otherwise)
+      await fetchNotes();
+      const updatedTags = await tagsService.getTags();
+      setTags(updatedTags);
       setIsEditorOpen(false);
     } catch (err) {
       console.error(err);
@@ -155,6 +168,8 @@ const Dashboard = () => {
       note.title.toLowerCase().includes(search.toLowerCase()) ||
       note.content.toLowerCase().includes(search.toLowerCase());
     if (activeSection === "favourites") return matchesSearch && note.favourited;
+    if (activeTag)
+      return matchesSearch && note.tags?.some((t) => t._id === activeTag);
     return matchesSearch;
   });
 
@@ -171,6 +186,8 @@ const Dashboard = () => {
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   };
 
+  const activeTagName = tags.find((t) => t._id === activeTag)?.name;
+
   return (
     <div style={styles.app}>
       {/* Sidebar */}
@@ -186,6 +203,7 @@ const Dashboard = () => {
             <NotebookPen size={18} strokeWidth={1.5} />
             <span style={styles.logoText}>Noted</span>
           </div>
+
           <nav style={styles.nav}>
             {[
               {
@@ -208,7 +226,9 @@ const Dashboard = () => {
                 key={item.id}
                 style={{
                   ...styles.navItem,
-                  ...(activeSection === item.id ? styles.navItemActive : {}),
+                  ...(activeSection === item.id && !activeTag ?
+                    styles.navItemActive
+                  : {}),
                 }}
                 onClick={() => handleSectionChange(item.id)}>
                 {item.icon}
@@ -216,6 +236,66 @@ const Dashboard = () => {
               </button>
             ))}
           </nav>
+
+          {/* Tags section */}
+          {tags.length > 0 && (
+            <div style={styles.tagsSection}>
+              <p style={styles.tagsSectionLabel}>Tags</p>
+              <div style={styles.tagsSectionList}>
+                {tags.map((tag) => (
+                  <button
+                    key={tag._id}
+                    style={{
+                      ...styles.tagSidebarItem,
+                      ...(activeTag === tag._id ? styles.navItemActive : {}),
+                    }}
+                    onMouseEnter={() => setHoveredTag(tag._id)}
+                    onMouseLeave={() => setHoveredTag(null)}
+                    onClick={() => handleTagClick(tag._id)}>
+                    <span
+                      style={{
+                        width: "8px",
+                        height: "8px",
+                        borderRadius: "50%",
+                        background: tag.color,
+                        flexShrink: 0,
+                      }}
+                    />
+                    <span
+                      style={{
+                        flex: 1,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}>
+                      {tag.name}
+                    </span>
+                    <Trash2
+                      size={13}
+                      strokeWidth={1.5}
+                      style={{
+                        flexShrink: 0,
+                        opacity: hoveredTag === tag._id ? 0.4 : 0,
+                      }}
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        await tagsService.deleteTag(tag._id);
+                        setTags(tags.filter((t) => t._id !== tag._id));
+                        setNotes(
+                          notes.map((n) => ({
+                            ...n,
+                            tags: n.tags.filter((t) => t._id !== tag._id),
+                          })),
+                        );
+                        if (activeTag === tag._id) setActiveTag(null);
+                      }}
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div style={styles.sidebarBottom}>
             <button style={styles.themeBtn} onClick={toggleTheme}>
               {theme === "light" ?
@@ -252,7 +332,9 @@ const Dashboard = () => {
               : <Menu size={16} strokeWidth={1.5} />}
             </button>
             <span style={styles.pageTitle}>
-              {activeSection === "all" ?
+              {activeTag ?
+                activeTagName
+              : activeSection === "all" ?
                 "All notes"
               : activeSection === "favourites" ?
                 "Favourites"
@@ -284,7 +366,7 @@ const Dashboard = () => {
         </div>
 
         <div style={styles.content}>
-          {/* Trash section */}
+          {/* Trash */}
           {activeSection === "trash" &&
             (trashNotes.length === 0 ?
               <div style={styles.emptyState}>
@@ -313,7 +395,7 @@ const Dashboard = () => {
                 </div>
               </>)}
 
-          {/* All notes / Favourites */}
+          {/* All notes / Favourites / Tag filter */}
           {activeSection !== "trash" &&
             (loading ?
               <div style={styles.emptyState}>
@@ -329,11 +411,15 @@ const Dashboard = () => {
                 <p style={styles.emptyTitle}>
                   {activeSection === "favourites" ?
                     "No favourites yet"
+                  : activeTag ?
+                    "No notes with this tag"
                   : "No notes yet"}
                 </p>
                 <p style={styles.emptySubtitle}>
                   {activeSection === "favourites" ?
                     "Star a note to add it here"
+                  : activeTag ?
+                    "Add this tag to a note from the editor"
                   : 'Click "New note" to get started'}
                 </p>
               </div>
@@ -465,6 +551,7 @@ const NoteCard = ({
           </button>
         </div>
       </div>
+
       <p
         style={styles.cardPreview}
         dangerouslySetInnerHTML={{
@@ -473,6 +560,30 @@ const NoteCard = ({
             '<span style="opacity:0.5">No additional text</span>',
         }}
       />
+
+      {note.tags?.length > 0 && (
+        <div style={styles.cardTags}>
+          {note.tags.slice(0, 3).map((tag) => (
+            <span key={tag._id} style={styles.cardTagChip}>
+              <span
+                style={{
+                  width: "6px",
+                  height: "6px",
+                  borderRadius: "50%",
+                  background: tag.color,
+                  flexShrink: 0,
+                  display: "inline-block",
+                }}
+              />
+              {tag.name}
+            </span>
+          ))}
+          {note.tags.length > 3 && (
+            <span style={styles.cardTagChip}>+{note.tags.length - 3}</span>
+          )}
+        </div>
+      )}
+
       <p style={styles.cardDate}>{formatDate(note.createdAt)}</p>
     </div>
   );
@@ -522,6 +633,7 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     padding: "16px 8px",
+    overflowY: "auto",
   },
   logo: {
     display: "flex",
@@ -558,6 +670,41 @@ const styles = {
     background: "var(--bg-primary)",
     color: "var(--text-primary)",
     fontWeight: "500",
+  },
+  tagsSection: {
+    marginTop: "16px",
+    paddingTop: "12px",
+    borderTop: "1px solid var(--border-primary)",
+  },
+  tagsSectionLabel: {
+    fontSize: "11px",
+    color: "var(--text-tertiary)",
+    textTransform: "uppercase",
+    letterSpacing: "0.05em",
+    padding: "0 8px",
+    marginBottom: "4px",
+  },
+  tagsSectionList: {
+    maxHeight: "180px",
+    overflowY: "auto",
+    display: "flex",
+    flexDirection: "column",
+    gap: "2px",
+  },
+  tagSidebarItem: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    padding: "7px 8px",
+    borderRadius: "6px",
+    fontSize: "13px",
+    color: "var(--text-secondary)",
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    width: "100%",
+    textAlign: "left",
+    transition: "var(--transition)",
   },
   sidebarBottom: {
     marginTop: "auto",
@@ -754,7 +901,24 @@ const styles = {
     WebkitLineClamp: 3,
     WebkitBoxOrient: "vertical",
     overflow: "hidden",
-    marginBottom: "10px",
+    marginBottom: "8px",
+  },
+  cardTags: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "4px",
+    marginBottom: "8px",
+  },
+  cardTagChip: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "4px",
+    padding: "2px 7px",
+    borderRadius: "20px",
+    background: "var(--bg-tertiary)",
+    border: "1px solid var(--border-primary)",
+    fontSize: "11px",
+    color: "var(--text-tertiary)",
   },
   cardDate: {
     fontSize: "11px",

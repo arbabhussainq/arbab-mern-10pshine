@@ -5,6 +5,7 @@ const pinoHttp = require("pino-http");
 const authRoutes = require("./routes/authRoutes");
 const notesRoutes = require("./routes/notesRoutes");
 const logger = require("./config/logger");
+const tagsRoutes = require("./routes/tagsRoutes");
 const { errorHandler, notFound } = require("./middleware/errorMiddleware");
 
 const app = express();
@@ -15,6 +16,7 @@ app.use(pinoHttp({ logger }));
 
 app.use("/api/auth", authRoutes);
 app.use("/api/notes", notesRoutes);
+app.use("/api/tags", tagsRoutes);
 
 app.get("/", (req, res) => {
   res.json({ message: "Notes App API is running!" });
