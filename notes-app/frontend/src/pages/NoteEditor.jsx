@@ -16,8 +16,23 @@ import {
   List,
   ListOrdered,
   Minus,
+  Tag,
+  Plus,
+  Check,
 } from "lucide-react";
 import useTheme from "../hooks/useTheme";
+import { tagsService } from "../services/tagsService";
+
+const TAG_COLORS = [
+  "#6b7280",
+  "#ef4444",
+  "#f97316",
+  "#eab308",
+  "#22c55e",
+  "#3b82f6",
+  "#8b5cf6",
+  "#ec4899",
+];
 
 const ToolbarBtn = ({ onClick, title, active, children }) => {
   const [hovered, setHovered] = useState(false);
@@ -72,23 +87,39 @@ const NoteEditor = ({ note, onSave, onClose, onDelete }) => {
   const [saving, setSaving] = useState(false);
   const [maximized, setMaximized] = useState(false);
   const [activeFormats, setActiveFormats] = useState({});
-  const [fontSize, setFontSize] = useState("16");
+  const [fontSize, setFontSize] = useState("3");
+  const [allTags, setAllTags] = useState([]);
+  const [selectedTags, setSelectedTags] = useState([]);
+  const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
+  const [newTagName, setNewTagName] = useState("");
+  const [newTagColor, setNewTagColor] = useState("#6b7280");
   const editorRef = useRef(null);
+
+  useEffect(() => {
+    const loadTags = async () => {
+      try {
+        const data = await tagsService.getTags();
+        setAllTags(data);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    loadTags();
+  }, []);
 
   useEffect(() => {
     if (note) {
       setTitle(note.title || "");
+      setSelectedTags(note.tags?.map((t) => t._id) || []);
       if (editorRef.current) {
         editorRef.current.innerHTML = note.content || "";
       }
+    } else {
+      if (editorRef.current) {
+        editorRef.current.innerHTML = "";
+      }
     }
   }, [note]);
-
-  useEffect(() => {
-    if (editorRef.current && !note) {
-      editorRef.current.innerHTML = "";
-    }
-  }, []);
 
   const exec = (command, value = null) => {
     editorRef.current?.focus();
@@ -113,30 +144,59 @@ const NoteEditor = ({ note, onSave, onClose, onDelete }) => {
     if (size) setFontSize(size);
   };
 
-
   const handleFontSize = (size) => {
     setFontSize(size);
     exec("fontSize", size);
   };
 
-const handleSave = async () => {
-  if (!title.trim()) return;
-  setSaving(true);
-  const content = editorRef.current ? editorRef.current.innerHTML : "";
-  console.log("Saving content:", content); // temporary debug
-  try {
-    await onSave({ title, content });
-  } finally {
-    setSaving(false);
-  }
-};
+  const handleSave = async () => {
+    if (!title.trim()) return;
+    setSaving(true);
+    const content = editorRef.current ? editorRef.current.innerHTML : "";
+    try {
+      await onSave({ title, content, tags: selectedTags });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCreateTag = async () => {
+    if (!newTagName.trim()) return;
+    try {
+      const tag = await tagsService.createTag({
+        name: newTagName.trim(),
+        color: newTagColor,
+      });
+      setAllTags([...allTags, tag]);
+      setSelectedTags([...selectedTags, tag._id]);
+      setNewTagName("");
+      setNewTagColor("#6b7280");
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const toggleTag = (tagId) => {
+    setSelectedTags((prev) =>
+      prev.includes(tagId) ?
+        prev.filter((id) => id !== tagId)
+      : [...prev, tagId],
+    );
+    setTagDropdownOpen(false);
+  };
 
   const handleKeyDown = (e) => {
     if (e.ctrlKey && e.key === "s") {
       e.preventDefault();
       handleSave();
     }
-    if (e.key === "Escape") onClose();
+    if (e.key === "Escape") {
+      if (tagDropdownOpen) {
+        setTagDropdownOpen(false);
+      } else {
+        onClose();
+      }
+    }
     if (e.ctrlKey && e.key === "b") {
       e.preventDefault();
       exec("bold");
@@ -224,20 +284,13 @@ const handleSave = async () => {
           background: theme === "dark" ? "#1f1f1f" : "#ffffff",
         }}>
         {/* Header */}
-        <div
-          style={{
-            ...styles.header,
-            borderColor: "var(--border-primary)",
-          }}>
+        <div style={{ ...styles.header, borderColor: "var(--border-primary)" }}>
           <input
             type="text"
             placeholder="Untitled"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            style={{
-              ...styles.titleInput,
-              color: "var(--text-primary)",
-            }}
+            style={{ ...styles.titleInput, color: "var(--text-primary)" }}
             autoFocus
           />
           <div style={styles.headerActions}>
@@ -287,7 +340,6 @@ const handleSave = async () => {
             borderColor: "var(--border-primary)",
             background: theme === "dark" ? "#191919" : "#fafafa",
           }}>
-          {/* Font size */}
           <select
             value={fontSize}
             onChange={(e) => handleFontSize(e.target.value)}
@@ -304,11 +356,11 @@ const handleSave = async () => {
             ))}
           </select>
 
-
           {toolbarGroups.map((group, gi) => (
             <div
               key={gi}
-              style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+              style={{ display: "flex", alignItems: "center", gap: "1px" }}>
+              <Divider />
               {group.map((btn) => (
                 <ToolbarBtn
                   key={btn.cmd}
@@ -322,6 +374,162 @@ const handleSave = async () => {
           ))}
         </div>
 
+        {/* Tags row */}
+        <div
+          style={{
+            ...styles.tagsRow,
+            borderColor: "var(--border-primary)",
+            background: theme === "dark" ? "#191919" : "#fafafa",
+          }}>
+          <Tag
+            size={13}
+            strokeWidth={1.5}
+            color="var(--text-tertiary)"
+            style={{ flexShrink: 0, marginTop: "2px" }}
+          />
+          <div style={styles.tagsList}>
+            {selectedTags.map((tagId) => {
+              const tag = allTags.find((t) => t._id === tagId);
+              if (!tag) return null;
+              return (
+                <span key={tagId} style={styles.tagChip}>
+                  <span style={{ ...styles.tagDot, background: tag.color }} />
+                  {tag.name}
+                  <button
+                    style={styles.tagRemoveBtn}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      toggleTag(tagId);
+                    }}>
+                    <X size={10} strokeWidth={2} />
+                  </button>
+                </span>
+              );
+            })}
+            <button
+              style={styles.addTagBtn}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                setTagDropdownOpen(!tagDropdownOpen);
+              }}>
+              <Plus size={12} strokeWidth={2} />
+              Add tag
+            </button>
+          </div>
+
+          {/* Tag dropdown */}
+          {tagDropdownOpen && (
+            <div
+              style={{
+                ...styles.tagDropdown,
+                background: theme === "dark" ? "#2a2a2a" : "#ffffff",
+                borderColor: "var(--border-primary)",
+              }}>
+              <div style={styles.tagDropdownList}>
+                {allTags.length === 0 && (
+                  <p style={styles.tagDropdownEmpty}>No tags yet</p>
+                )}
+                {allTags.map((tag) => (
+                  <button
+                    key={tag._id}
+                    style={{
+                      ...styles.tagDropdownItem,
+                      background: "none",
+                      border: "none",
+                    }}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      toggleTag(tag._id);
+                    }}>
+                    <span style={{ ...styles.tagDot, background: tag.color }} />
+                    <span
+                      style={{
+                        flex: 1,
+                        fontSize: "13px",
+                        color: "var(--text-primary)",
+                        textAlign: "left",
+                      }}>
+                      {tag.name}
+                    </span>
+                    {selectedTags.includes(tag._id) && (
+                      <Check
+                        size={12}
+                        strokeWidth={2}
+                        color="var(--text-secondary)"
+                      />
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              <div
+                style={{
+                  ...styles.tagCreateSection,
+                  borderColor: "var(--border-primary)",
+                }}>
+                <p style={styles.tagCreateLabel}>Create new tag</p>
+                <div style={styles.colorPickerRow}>
+                  {TAG_COLORS.map((c) => (
+                    <button
+                      key={c}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setNewTagColor(c);
+                      }}
+                      style={{
+                        width: "20px",
+                        height: "20px",
+                        borderRadius: "50%",
+                        background: c,
+                        border:
+                          newTagColor === c ?
+                            "3px solid var(--text-primary)"
+                          : "2px solid transparent",
+                        cursor: "pointer",
+                        flexShrink: 0,
+                        boxShadow:
+                          newTagColor === c ? `0 0 0 1px ${c}` : "none",
+                      }}
+                    />
+                  ))}
+                </div>
+                <div style={styles.tagInputRow}>
+                  <input
+                    type="text"
+                    placeholder="Tag name..."
+                    value={newTagName}
+                    onChange={(e) => setNewTagName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleCreateTag();
+                      }
+                    }}
+                    style={{
+                      ...styles.tagInput,
+                      background: "var(--bg-secondary)",
+                      color: "var(--text-primary)",
+                      borderColor: "var(--border-primary)",
+                    }}
+                  />
+                  <button
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      handleCreateTag();
+                    }}
+                    style={{
+                      ...styles.tagCreateBtn,
+                      opacity: !newTagName.trim() ? 0.5 : 1,
+                    }}
+                    disabled={!newTagName.trim()}>
+                    Add
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Editor */}
         <div
           ref={editorRef}
@@ -330,6 +538,12 @@ const handleSave = async () => {
           onKeyUp={updateActiveFormats}
           onMouseUp={updateActiveFormats}
           onSelect={updateActiveFormats}
+          onClick={(e) => {
+            if (e.target.tagName === "A") {
+              e.preventDefault();
+              window.open(e.target.href, "_blank");
+            }
+          }}
           style={{
             ...styles.editor,
             color: "var(--text-primary)",
@@ -339,11 +553,7 @@ const handleSave = async () => {
         />
 
         {/* Footer */}
-        <div
-          style={{
-            ...styles.footer,
-            borderColor: "var(--border-primary)",
-          }}>
+        <div style={{ ...styles.footer, borderColor: "var(--border-primary)" }}>
           <span style={styles.hint}>
             <kbd style={styles.kbd}>Ctrl+S</kbd> save ·{" "}
             <kbd style={styles.kbd}>Ctrl+B</kbd> bold ·{" "}
@@ -457,6 +667,141 @@ const styles = {
     cursor: "pointer",
     outline: "none",
     fontFamily: "var(--font)",
+  },
+  tagsRow: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: "8px",
+    padding: "8px 16px",
+    borderBottom: "1px solid",
+    flexShrink: 0,
+    position: "relative",
+    minHeight: "40px",
+  },
+  tagsList: {
+    display: "flex",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: "6px",
+    flex: 1,
+  },
+  tagChip: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "5px",
+    padding: "3px 8px",
+    borderRadius: "20px",
+    background: "var(--bg-tertiary)",
+    border: "1px solid var(--border-primary)",
+    fontSize: "12px",
+    color: "var(--text-secondary)",
+  },
+  tagDot: {
+    width: "7px",
+    height: "7px",
+    borderRadius: "50%",
+    flexShrink: 0,
+    display: "inline-block",
+  },
+  tagRemoveBtn: {
+    display: "flex",
+    alignItems: "center",
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    color: "var(--text-tertiary)",
+    padding: "0",
+  },
+  addTagBtn: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "4px",
+    padding: "3px 8px",
+    borderRadius: "20px",
+    background: "none",
+    border: "1px dashed var(--border-secondary)",
+    fontSize: "12px",
+    color: "var(--text-tertiary)",
+    cursor: "pointer",
+  },
+  tagDropdown: {
+    position: "absolute",
+    top: "44px",
+    left: "16px",
+    width: "260px",
+    borderRadius: "10px",
+    border: "1px solid",
+    zIndex: 200,
+    boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
+    overflow: "hidden",
+  },
+  tagDropdownList: {
+    maxHeight: "160px",
+    overflowY: "auto",
+    padding: "8px",
+  },
+  tagDropdownEmpty: {
+    fontSize: "12px",
+    color: "var(--text-tertiary)",
+    padding: "10px 8px",
+    textAlign: "center",
+    margin: 0,
+  },
+  tagDropdownItem: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    width: "100%",
+    padding: "8px 10px",
+    borderRadius: "6px",
+    cursor: "pointer",
+  },
+  tagCreateSection: {
+    padding: "12px",
+    borderTop: "1px solid",
+    display: "flex",
+    flexDirection: "column",
+    gap: "10px",
+  },
+  tagCreateLabel: {
+    fontSize: "11px",
+    color: "var(--text-tertiary)",
+    textTransform: "uppercase",
+    letterSpacing: "0.05em",
+    margin: 0,
+  },
+  colorPickerRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    flexWrap: "wrap",
+  },
+  tagInputRow: {
+    display: "flex",
+    gap: "8px",
+    alignItems: "center",
+  },
+  tagInput: {
+    flex: 1,
+    padding: "7px 10px",
+    borderRadius: "6px",
+    border: "1px solid",
+    fontSize: "12px",
+    outline: "none",
+    fontFamily: "var(--font)",
+    minWidth: 0,
+  },
+  tagCreateBtn: {
+    padding: "7px 14px",
+    borderRadius: "6px",
+    background: "var(--accent)",
+    color: "var(--bg-primary)",
+    border: "none",
+    fontSize: "12px",
+    fontWeight: "600",
+    cursor: "pointer",
+    flexShrink: 0,
+    whiteSpace: "nowrap",
   },
   editor: {
     flex: 1,

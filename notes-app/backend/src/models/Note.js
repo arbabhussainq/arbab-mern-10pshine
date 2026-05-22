@@ -1,5 +1,4 @@
 const mongoose = require("mongoose");
-
 const noteSchema = new mongoose.Schema(
   {
     title: {
@@ -16,12 +15,25 @@ const noteSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
-    color: {
-      type: String,
-      default: "#ffffff",
+    pinned: {
+      type: Boolean,
+      default: false,
     },
+    favourited: {
+      type: Boolean,
+      default: false,
+    },
+    deleted: {
+      type: Boolean,
+      default: false,
+    },
+    tags: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Tag",
+      },
+    ],
   },
   { timestamps: true },
 );
-
 module.exports = mongoose.model("Note", noteSchema);

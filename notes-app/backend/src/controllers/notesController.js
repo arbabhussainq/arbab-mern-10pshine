@@ -3,9 +3,12 @@ const logger = require("../config/logger");
 
 const getNotes = async (req, res) => {
   try {
-    const notes = await Note.find({ user: req.user._id }).sort({
-      createdAt: -1,
-    });
+    const notes = await Note.find({
+      user: req.user._id,
+      deleted: false,
+    })
+      .populate("tags")
+      .sort({ pinned: -1, createdAt: -1 });
     logger.info(`Fetched ${notes.length} notes for user: ${req.user.email}`);
     res.status(200).json(notes);
   } catch (error) {
@@ -37,7 +40,7 @@ const getNoteById = async (req, res) => {
 
 const createNote = async (req, res) => {
   try {
-    const { title, content, color } = req.body || {};
+    const { title, content, color, tags } = req.body || {};
 
     if (!title) {
       return res.status(400).json({ message: "Title is required" });
@@ -47,11 +50,14 @@ const createNote = async (req, res) => {
       title,
       content,
       color,
+      tags: tags || [],
       user: req.user._id,
     });
 
+    const populated = await note.populate("tags");
+
     logger.info(`Note created by user: ${req.user.email}`);
-    res.status(201).json(note);
+    res.status(201).json(populated);
   } catch (error) {
     logger.error(`createNote error: ${error.message}`);
     res.status(500).json({ message: error.message });
@@ -74,7 +80,7 @@ const updateNote = async (req, res) => {
 
     const updatedNote = await Note.findByIdAndUpdate(req.params.id, req.body, {
       returnDocument: "after",
-    });
+    }).populate("tags");
 
     logger.info(`Note updated by user: ${req.user.email}`);
     res.status(200).json(updatedNote);
@@ -106,5 +112,27 @@ const deleteNote = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+const getTrashNotes = async (req, res) => {
+  try {
+    const notes = await Note.find({
+      user: req.user._id,
+      deleted: true,
+    })
+      .populate("tags")
+      .sort({ updatedAt: -1 });
+    logger.info(`Fetched trash notes for user: ${req.user.email}`);
+    res.status(200).json(notes);
+  } catch (error) {
+    logger.error(`getTrashNotes error: ${error.message}`);
+    res.status(500).json({ message: error.message });
+  }
+};
 
-module.exports = { getNotes, getNoteById, createNote, updateNote, deleteNote };
+module.exports = {
+  getNotes,
+  getNoteById,
+  createNote,
+  updateNote,
+  deleteNote,
+  getTrashNotes,
+};
