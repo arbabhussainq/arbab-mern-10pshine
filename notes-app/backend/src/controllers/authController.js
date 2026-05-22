@@ -83,4 +83,83 @@ const login = async (req, res) => {
   }
 };
 
-module.exports = { register, login };
+// @desc    Get current user profile
+// @route   GET /api/auth/profile
+const getProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('-password');
+    res.status(200).json({
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      createdAt: user.createdAt,
+    });
+  } catch (error) {
+    logger.error(`getProfile error: ${error.message}`);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const updateInfo = async (req, res) => {
+  try {
+    const { name, email } = req.body || {};
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ message: 'Name is required' });
+    }
+    if (!email || !email.trim()) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+
+    // Check if new email is already taken by another user
+    const existingUser = await User.findOne({ email: email.toLowerCase().trim() });
+    if (existingUser && existingUser._id.toString() !== req.user._id.toString()) {
+      return res.status(400).json({ message: 'Email already in use' });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { name: name.trim(), email: email.toLowerCase().trim() },
+      { new: true }
+    ).select('-password');
+
+    logger.info(`Info updated for user: ${user.email}`);
+    res.status(200).json({
+      message: 'Info updated successfully',
+      user: { id: user._id, name: user.name, email: user.email },
+    });
+  } catch (error) {
+    logger.error(`updateInfo error: ${error.message}`);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const updatePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body || {};
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Please provide all fields' });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: 'New password must be at least 6 characters' });
+    }
+
+    const user = await User.findById(req.user._id);
+    const isMatch = await user.comparePassword(currentPassword);
+    if (!isMatch) {
+      logger.warn(`Password update failed - wrong current password for: ${user.email}`);
+      return res.status(401).json({ message: 'Current password is incorrect' });
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    logger.info(`Password updated for user: ${user.email}`);
+    res.status(200).json({ message: 'Password updated successfully' });
+  } catch (error) {
+    logger.error(`updatePassword error: ${error.message}`);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = { register, login, getProfile, updateInfo, updatePassword };

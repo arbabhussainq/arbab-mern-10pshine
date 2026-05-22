@@ -20,10 +20,12 @@ import useTheme from "../hooks/useTheme";
 import { notesService } from "../services/notesService";
 import { tagsService } from "../services/tagsService";
 import NoteEditor from "./NoteEditor";
+import { useNavigate } from "react-router-dom";
 
 const Dashboard = () => {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const navigate = useNavigate();
   const [notes, setNotes] = useState([]);
   const [trashNotes, setTrashNotes] = useState([]);
   const [tags, setTags] = useState([]);
@@ -311,7 +313,12 @@ const Dashboard = () => {
               <div style={styles.avatar}>
                 {user?.name?.charAt(0).toUpperCase()}
               </div>
-              <span style={styles.userName}>{user?.name}</span>
+              <span
+                style={{ ...styles.userName, cursor: "pointer" }}
+                onClick={() => navigate("/profile")}
+                title="View profile">
+                {user?.name}
+              </span>
               <button style={styles.logoutBtn} onClick={logout} title="Logout">
                 <LogOut size={14} strokeWidth={1.5} />
               </button>
