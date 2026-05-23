@@ -60,4 +60,28 @@ export const authService = {
       );
     }
   },
+
+  forgotPassword: async (email) => {
+    try {
+      const res = await API.post("/auth/forgot-password", { email });
+      return res.data;
+    } catch (err) {
+      throw new Error(err.response?.data?.message || "Failed to send OTP");
+    }
+  },
+
+  resetPassword: async (email, otp, newPassword) => {
+    try {
+      const res = await API.post("/auth/reset-password", {
+        email,
+        otp,
+        newPassword,
+      });
+      return res.data;
+    } catch (err) {
+      throw new Error(
+        err.response?.data?.message || "Failed to reset password",
+      );
+    }
+  },
 };

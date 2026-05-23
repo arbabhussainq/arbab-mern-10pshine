@@ -20,6 +20,14 @@ const userSchema = new mongoose.Schema(
       required: [true, "Password is required"],
       minlength: 6,
     },
+    resetOTP: {
+      type: String,
+      default: null,
+    },
+    resetOTPExpires: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true },
 );

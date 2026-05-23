@@ -83,6 +83,12 @@ const Login = () => {
             </div>
           </div>
 
+          <div style={styles.forgotRow}>
+            <Link to="/forgot-password" style={styles.forgotLink}>
+              Forgot password?
+            </Link>
+          </div>
+
           <button
             type="submit"
             style={loading ? { ...styles.btn, opacity: 0.6 } : styles.btn}
@@ -188,6 +194,17 @@ const styles = {
     color: "var(--text-tertiary)",
     display: "flex",
     alignItems: "center",
+  },
+  forgotRow: {
+    display: "flex",
+    justifyContent: "flex-end",
+    marginTop: "-8px",
+  },
+  forgotLink: {
+    fontSize: "13px",
+    color: "var(--text-secondary)",
+    textDecoration: "underline",
+    textUnderlineOffset: "2px",
   },
   btn: {
     width: "100%",
