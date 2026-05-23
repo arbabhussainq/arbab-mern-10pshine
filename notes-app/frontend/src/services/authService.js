@@ -38,9 +38,9 @@ export const authService = {
     }
   },
 
-  updateInfo: async (name, email) => {
+  updateInfo: async (name) => {
     try {
-      const res = await API.put("/auth/profile/info", { name, email });
+      const res = await API.put("/auth/profile/info", { name });
       return res.data;
     } catch (err) {
       throw new Error(err.response?.data?.message || "Failed to update info");

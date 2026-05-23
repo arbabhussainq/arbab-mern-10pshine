@@ -102,30 +102,20 @@ const getProfile = async (req, res) => {
 
 const updateInfo = async (req, res) => {
   try {
-    const { name, email } = req.body || {};
+    const { name } = req.body || {};
 
     if (!name || !name.trim()) {
-      return res.status(400).json({ message: 'Name is required' });
-    }
-    if (!email || !email.trim()) {
-      return res.status(400).json({ message: 'Email is required' });
-    }
-
-    // Check if new email is already taken by another user
-    const existingUser = await User.findOne({ email: email.toLowerCase().trim() });
-    if (existingUser && existingUser._id.toString() !== req.user._id.toString()) {
-      return res.status(400).json({ message: 'Email already in use' });
+      return res.status(400).json({ message: "Name is required" });
     }
 
     const user = await User.findByIdAndUpdate(
       req.user._id,
-      { name: name.trim(), email: email.toLowerCase().trim() },
-      { new: true }
-    ).select('-password');
+      { name: name.trim() },
+      { new: true },
+    );
 
-    logger.info(`Info updated for user: ${user.email}`);
+    logger.info(`Name updated for user: ${user.email}`);
     res.status(200).json({
-      message: 'Info updated successfully',
       user: { id: user._id, name: user.name, email: user.email },
     });
   } catch (error) {
