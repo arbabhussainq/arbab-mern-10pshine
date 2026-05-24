@@ -22,7 +22,6 @@ const Profile = () => {
 
   // Name form
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
   const [nameLoading, setNameLoading] = useState(false);
   const [nameSuccess, setNameSuccess] = useState("");
   const [nameError, setNameError] = useState("");
@@ -43,8 +42,6 @@ const Profile = () => {
 
   useEffect(() => {
     if (user) {
-      setName(user.name || "");
-      setEmail(user.email || "");
       setName(user.name || "");
       const loadProfile = async () => {
         try {
@@ -67,15 +64,8 @@ const Profile = () => {
   const handleUpdateInfo = async (e) => {
     e.preventDefault();
     if (!name.trim()) return;
-    if (!email.trim()) return;
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      setNameError("Please enter a valid email address");
-      return;
-    }
-
-    if (name.trim() === user.name && email.trim() === user.email) {
+    if (name.trim() === user.name) {
       setNameError("No changes detected");
       return;
     }
@@ -84,9 +74,9 @@ const Profile = () => {
     setNameError("");
     setNameSuccess("");
     try {
-      const data = await authService.updateInfo(name.trim(), email.trim());
+      const data = await authService.updateInfo(name.trim(), user.email);
       updateUser(data.user);
-      setNameSuccess("Info updated successfully!");
+      setNameSuccess("Name updated successfully!");
       setTimeout(() => setNameSuccess(""), 3000);
     } catch (err) {
       setNameError(err.message);
@@ -225,9 +215,7 @@ const Profile = () => {
             {/* Name tab */}
             {activeTab === "name" && (
               <form onSubmit={handleUpdateInfo} style={styles.form}>
-                <p style={styles.formDesc}>
-                  Update your display name and email address.
-                </p>
+                <p style={styles.formDesc}>Update your display name.</p>
 
                 {nameError && <div style={styles.error}>{nameError}</div>}
                 {nameSuccess && (
@@ -257,34 +245,13 @@ const Profile = () => {
                   />
                 </div>
 
-                <div style={styles.field}>
-                  <label style={styles.label}>Email address</label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => {
-                      setEmail(e.target.value);
-                      setNameError("");
-                    }}
-                    placeholder="you@example.com"
-                    style={{
-                      ...styles.input,
-                      background: "var(--bg-secondary)",
-                      color: "var(--text-primary)",
-                      borderColor: "var(--border-primary)",
-                    }}
-                    required
-                  />
-                </div>
-
                 <button
                   type="submit"
                   style={{
                     ...styles.btn,
-                    opacity:
-                      nameLoading || !name.trim() || !email.trim() ? 0.6 : 1,
+                    opacity: nameLoading || !name.trim() ? 0.6 : 1,
                   }}
-                  disabled={nameLoading || !name.trim() || !email.trim()}>
+                  disabled={nameLoading || !name.trim()}>
                   {nameLoading ? "Updating..." : "Save changes"}
                 </button>
               </form>
