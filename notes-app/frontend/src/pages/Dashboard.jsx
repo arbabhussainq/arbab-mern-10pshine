@@ -616,7 +616,14 @@ const TrashCard = ({ note, onRestore, onDelete, formatDate }) => {
           </button>
         </div>
       </div>
-      <p style={styles.cardPreview}>{note.content || "No additional text"}</p>
+      <p
+        style={styles.cardPreview}
+        dangerouslySetInnerHTML={{
+          __html:
+            note.content ||
+            '<span style="opacity:0.5">No additional text</span>',
+        }}
+      />
       <p style={styles.cardDate}>{formatDate(note.updatedAt)}</p>
     </div>
   );

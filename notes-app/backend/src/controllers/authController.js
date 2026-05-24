@@ -8,8 +8,6 @@ const generateToken = (id) => {
   });
 };
 
-// @desc    Register a new user
-// @route   POST /api/auth/register
 const register = async (req, res) => {
   try {
     const { name, email, password } = req.body || {};
@@ -42,8 +40,6 @@ const register = async (req, res) => {
   }
 };
 
-// @desc    Login user
-// @route   POST /api/auth/login
 const login = async (req, res) => {
   try {
     const { email, password } = req.body || {};
@@ -83,11 +79,9 @@ const login = async (req, res) => {
   }
 };
 
-// @desc    Get current user profile
-// @route   GET /api/auth/profile
 const getProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select('-password');
+    const user = await User.findById(req.user._id).select("-password");
     res.status(200).json({
       id: user._id,
       name: user.name,
@@ -128,28 +122,120 @@ const updatePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body || {};
     if (!currentPassword || !newPassword) {
-      return res.status(400).json({ message: 'Please provide all fields' });
+      return res.status(400).json({ message: "Please provide all fields" });
     }
     if (newPassword.length < 6) {
-      return res.status(400).json({ message: 'New password must be at least 6 characters' });
+      return res
+        .status(400)
+        .json({ message: "New password must be at least 6 characters" });
     }
 
     const user = await User.findById(req.user._id);
     const isMatch = await user.comparePassword(currentPassword);
     if (!isMatch) {
-      logger.warn(`Password update failed - wrong current password for: ${user.email}`);
-      return res.status(401).json({ message: 'Current password is incorrect' });
+      logger.warn(
+        `Password update failed - wrong current password for: ${user.email}`,
+      );
+      return res.status(401).json({ message: "Current password is incorrect" });
     }
 
     user.password = newPassword;
     await user.save();
 
     logger.info(`Password updated for user: ${user.email}`);
-    res.status(200).json({ message: 'Password updated successfully' });
+    res.status(200).json({ message: "Password updated successfully" });
   } catch (error) {
     logger.error(`updatePassword error: ${error.message}`);
     res.status(500).json({ message: error.message });
   }
 };
 
-module.exports = { register, login, getProfile, updateInfo, updatePassword };
+const { sendOTPEmail } = require("../config/emailService");
+const crypto = require("crypto");
+
+const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body || {};
+    if (!email) {
+      return res.status(400).json({ message: "Please provide your email" });
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    if (!user) {
+      return res
+        .status(200)
+        .json({ message: "If this email exists, an OTP has been sent" });
+    }
+
+    const otp = crypto.randomInt(100000, 999999).toString();
+    const expires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    user.resetOTP = otp;
+    user.resetOTPExpires = expires;
+    await user.save();
+
+    await sendOTPEmail(user.email, otp, user.name);
+    logger.info(`OTP sent to: ${email}`);
+
+    res.status(200).json({ message: "OTP sent to your email" });
+  } catch (error) {
+    logger.error(`forgotPassword error: ${error.message}`);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const resetPassword = async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body || {};
+
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({ message: "Please provide all fields" });
+    }
+    if (newPassword.length < 6) {
+      return res
+        .status(400)
+        .json({ message: "Password must be at least 6 characters" });
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    if (!user || !user.resetOTP) {
+      return res.status(400).json({ message: "Invalid or expired OTP" });
+    }
+
+    if (user.resetOTPExpires < new Date()) {
+      user.resetOTP = null;
+      user.resetOTPExpires = null;
+      await user.save();
+      return res
+        .status(400)
+        .json({ message: "OTP has expired. Please request a new one" });
+    }
+
+    if (user.resetOTP !== otp) {
+      return res.status(400).json({ message: "Incorrect OTP" });
+    }
+
+    user.password = newPassword;
+    user.resetOTP = null;
+    user.resetOTPExpires = null;
+    await user.save();
+
+    logger.info(`Password reset successful for: ${email}`);
+    res
+      .status(200)
+      .json({ message: "Password reset successful. You can now login." });
+  } catch (error) {
+    logger.error(`resetPassword error: ${error.message}`);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = {
+  register,
+  login,
+  getProfile,
+  updateInfo,
+  updatePassword,
+  forgotPassword,
+  resetPassword,
+};
