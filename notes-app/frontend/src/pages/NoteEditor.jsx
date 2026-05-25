@@ -19,9 +19,11 @@ import {
   Tag,
   Plus,
   Check,
+  FileType,
 } from "lucide-react";
 import useTheme from "../hooks/useTheme";
 import { tagsService } from "../services/tagsService";
+import { exportAsPDF } from "../services/exportService";
 
 const TAG_COLORS = [
   "#6b7280",
@@ -93,6 +95,7 @@ const NoteEditor = ({ note, onSave, onClose, onDelete }) => {
   const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
   const [newTagName, setNewTagName] = useState("");
   const [newTagColor, setNewTagColor] = useState("#6b7280");
+  const [exportingPDF, setExportingPDF] = useState(false);
   const editorRef = useRef(null);
 
   useEffect(() => {
@@ -157,6 +160,27 @@ const NoteEditor = ({ note, onSave, onClose, onDelete }) => {
       await onSave({ title, content, tags: selectedTags });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleExportPDF = async () => {
+    if (!title.trim()) return;
+    setExportingPDF(true);
+    try {
+      const noteData = {
+        title,
+        content: editorRef.current?.innerHTML || "",
+        createdAt: note?.createdAt || new Date().toISOString(),
+        updatedAt: note?.updatedAt || new Date().toISOString(),
+        pinned: note?.pinned || false,
+        favourited: note?.favourited || false,
+        tags: note?.tags || [],
+      };
+      await exportAsPDF([noteData], title.trim());
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setExportingPDF(false);
     }
   };
 
@@ -306,6 +330,26 @@ const NoteEditor = ({ note, onSave, onClose, onDelete }) => {
                 <Trash2 size={15} strokeWidth={1.5} />
               </button>
             )}
+            <button
+              style={{
+                ...styles.iconBtn,
+                color:
+                  exportingPDF ?
+                    "var(--text-tertiary)"
+                  : "var(--text-secondary)",
+                opacity: exportingPDF || !title.trim() ? 0.5 : 1,
+              }}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={handleExportPDF}
+              disabled={exportingPDF || !title.trim()}
+              title="Export as PDF">
+              {exportingPDF ?
+                <span
+                  style={{ fontSize: "10px", color: "var(--text-tertiary)" }}>
+                  ...
+                </span>
+              : <FileType size={15} strokeWidth={1.5} />}
+            </button>
             <button
               style={{
                 ...styles.saveBtn,

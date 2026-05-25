@@ -57,4 +57,22 @@ export const notesService = {
       throw new Error(err.response?.data?.message || "Failed to delete note");
     }
   },
+
+  emptyTrash: async () => {
+    try {
+      const res = await API.delete("/notes/trash/empty");
+      return res.data;
+    } catch (err) {
+      throw new Error(err.response?.data?.message || "Failed to empty trash");
+    }
+  },
+
+  importNotes: async (notes) => {
+    try {
+      const res = await API.post("/notes/import", { notes });
+      return res.data;
+    } catch (err) {
+      throw new Error(err.response?.data?.message || "Failed to import notes");
+    }
+  },
 };

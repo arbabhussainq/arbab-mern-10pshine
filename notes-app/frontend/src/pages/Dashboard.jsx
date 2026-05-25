@@ -14,6 +14,7 @@ import {
   Pin,
   PinOff,
   RotateCcw,
+  Download,
 } from "lucide-react";
 import useAuth from "../hooks/useAuth";
 import useTheme from "../hooks/useTheme";
@@ -21,6 +22,7 @@ import { notesService } from "../services/notesService";
 import { tagsService } from "../services/tagsService";
 import NoteEditor from "./NoteEditor";
 import { useNavigate } from "react-router-dom";
+import ExportImportModal from "../components/ExportImportModal";
 
 const Dashboard = () => {
   const { user, logout } = useAuth();
@@ -37,6 +39,7 @@ const Dashboard = () => {
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [hoveredTag, setHoveredTag] = useState(null);
+  const [exportImportOpen, setExportImportOpen] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -102,7 +105,6 @@ const Dashboard = () => {
       } else {
         await notesService.createNote(noteData);
       }
-      // Refetch notes so tags are fully populated (backend returns ObjectIds otherwise)
       await fetchNotes();
       const updatedTags = await tagsService.getTags();
       setTags(updatedTags);
@@ -136,6 +138,21 @@ const Dashboard = () => {
     try {
       await notesService.deleteNote(id);
       setTrashNotes(trashNotes.filter((n) => n._id !== id));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleEmptyTrash = async () => {
+    if (
+      !window.confirm(
+        "Permanently delete all notes in trash? This cannot be undone.",
+      )
+    )
+      return;
+    try {
+      await notesService.emptyTrash();
+      setTrashNotes([]);
     } catch (err) {
       console.error(err);
     }
@@ -278,6 +295,7 @@ const Dashboard = () => {
                       style={{
                         flexShrink: 0,
                         opacity: hoveredTag === tag._id ? 0.4 : 0,
+                        transition: "opacity 0.15s ease",
                       }}
                       onClick={async (e) => {
                         e.stopPropagation();
@@ -363,6 +381,12 @@ const Dashboard = () => {
                 style={styles.searchInput}
               />
             </div>
+            <button
+              style={styles.iconTopBtn}
+              onClick={() => setExportImportOpen(true)}
+              title="Export or Import notes">
+              <Download size={15} strokeWidth={1.5} />
+            </button>
             {activeSection !== "trash" && (
               <button style={styles.newBtn} onClick={handleNewNote}>
                 <Plus size={15} strokeWidth={1.5} />
@@ -388,7 +412,15 @@ const Dashboard = () => {
                 </p>
               </div>
             : <>
-                <p style={styles.sectionLabel}>Deleted notes</p>
+                <div style={styles.trashHeader}>
+                  <p style={styles.sectionLabel}>Deleted notes</p>
+                  <button
+                    style={styles.emptyTrashBtn}
+                    onClick={handleEmptyTrash}>
+                    <Trash2 size={13} strokeWidth={1.5} />
+                    Empty trash
+                  </button>
+                </div>
                 <div style={styles.grid}>
                   {trashNotes.map((note) => (
                     <TrashCard
@@ -496,6 +528,14 @@ const Dashboard = () => {
             handleSoftDelete(id);
             setIsEditorOpen(false);
           }}
+        />
+      )}
+
+      {exportImportOpen && (
+        <ExportImportModal
+          notes={notes}
+          onClose={() => setExportImportOpen(false)}
+          onImportSuccess={fetchNotes}
         />
       )}
     </div>
@@ -834,6 +874,18 @@ const styles = {
     color: "var(--text-primary)",
     width: "100%",
   },
+  iconTopBtn: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "32px",
+    height: "32px",
+    borderRadius: "7px",
+    border: "1px solid var(--border-primary)",
+    background: "none",
+    color: "var(--text-secondary)",
+    cursor: "pointer",
+  },
   newBtn: {
     display: "flex",
     alignItems: "center",
@@ -853,13 +905,33 @@ const styles = {
     overflowY: "auto",
     padding: "24px",
   },
+  trashHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: "12px",
+  },
   sectionLabel: {
     fontSize: "11px",
     color: "var(--text-tertiary)",
     textTransform: "uppercase",
     letterSpacing: "0.05em",
-    marginBottom: "12px",
     fontWeight: "500",
+    margin: 0,
+  },
+  emptyTrashBtn: {
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    padding: "5px 12px",
+    borderRadius: "6px",
+    border: "1px solid #fcc",
+    background: "#fff0f0",
+    color: "#c00",
+    fontSize: "12px",
+    fontWeight: "500",
+    cursor: "pointer",
+    fontFamily: "var(--font)",
   },
   grid: {
     display: "grid",

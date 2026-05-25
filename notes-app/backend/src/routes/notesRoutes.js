@@ -7,13 +7,16 @@ const {
   updateNote,
   deleteNote,
   getTrashNotes,
+  emptyTrash,
+  importNotes,
 } = require("../controllers/notesController");
 const { protect } = require("../middleware/authMiddleware");
 
-// All notes routes are protected
 router.use(protect);
 router.route("/").get(getNotes).post(createNote);
-router.route("/trash").get(getTrashNotes);
+router.get("/trash", getTrashNotes);
+router.delete("/trash/empty", emptyTrash);
+router.post("/import", importNotes);
 router.route("/:id").get(getNoteById).put(updateNote).delete(deleteNote);
 
 module.exports = router;
