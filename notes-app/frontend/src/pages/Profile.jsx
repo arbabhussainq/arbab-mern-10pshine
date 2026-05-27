@@ -76,7 +76,7 @@ const Profile = () => {
     try {
       const data = await authService.updateInfo(name.trim(), user.email);
       updateUser(data.user);
-      setNameSuccess("Name updated successfully!");
+      setNameSuccess("Info updated successfully!");
       setTimeout(() => setNameSuccess(""), 3000);
     } catch (err) {
       setNameError(err.message);
@@ -194,7 +194,7 @@ const Profile = () => {
               }}
               onClick={() => setActiveTab("name")}>
               <User size={14} strokeWidth={1.5} />
-              Update Account Info
+              Account Info
             </button>
             <button
               style={{
