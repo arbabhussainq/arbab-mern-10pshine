@@ -128,6 +128,89 @@ const getTrashNotes = async (req, res) => {
   }
 };
 
+const emptyTrash = async (req, res) => {
+  try {
+    const result = await Note.deleteMany({
+      user: req.user._id,
+      deleted: true,
+    });
+    logger.info(
+      `Trash emptied by user: ${req.user.email} — ${result.deletedCount} notes deleted`,
+    );
+    res
+      .status(200)
+      .json({ message: `${result.deletedCount} notes permanently deleted` });
+  } catch (error) {
+    logger.error(`emptyTrash error: ${error.message}`);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const importNotes = async (req, res) => {
+  try {
+    const { notes } = req.body || {};
+    if (!notes || !Array.isArray(notes) || notes.length === 0) {
+      return res.status(400).json({ message: "No notes provided" });
+    }
+
+    // Get existing notes titles + content to check duplicates
+    const existingNotes = await Note.find({
+      user: req.user._id,
+      deleted: false,
+    }).select("title content");
+
+    const existingSet = new Set(
+      existingNotes.map(
+        (n) =>
+          `${n.title?.trim().toLowerCase()}|||${n.content?.trim().toLowerCase()}`,
+      ),
+    );
+
+    const toImport = [];
+    const skipped = [];
+
+    for (const note of notes) {
+      if (!note.title) continue;
+      const key = `${note.title?.trim().toLowerCase()}|||${note.content?.trim().toLowerCase() || ""}`;
+      if (existingSet.has(key)) {
+        skipped.push(note.title);
+        continue;
+      }
+      toImport.push({
+        title: note.title.trim(),
+        content: note.content || "",
+        tags: [],
+        pinned: false,
+        favourited: false,
+        deleted: false,
+        user: req.user._id,
+      });
+    }
+
+    if (toImport.length === 0) {
+      return res.status(200).json({
+        message: "No new notes to import — all were duplicates",
+        imported: 0,
+        skipped: skipped.length,
+      });
+    }
+
+    await Note.insertMany(toImport);
+    logger.info(
+      `Imported ${toImport.length} notes for user: ${req.user.email}`,
+    );
+
+    res.status(201).json({
+      message: `Successfully imported ${toImport.length} note${toImport.length > 1 ? "s" : ""}${skipped.length > 0 ? `, skipped ${skipped.length} duplicate${skipped.length > 1 ? "s" : ""}` : ""}`,
+      imported: toImport.length,
+      skipped: skipped.length,
+    });
+  } catch (error) {
+    logger.error(`importNotes error: ${error.message}`);
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   getNotes,
   getNoteById,
@@ -135,4 +218,6 @@ module.exports = {
   updateNote,
   deleteNote,
   getTrashNotes,
+  emptyTrash,
+  importNotes,
 };
