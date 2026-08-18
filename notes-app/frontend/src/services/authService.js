@@ -11,6 +11,7 @@ API.interceptors.request.use((config) => {
 });
 
 export const authService = {
+  
   login: async (credentials) => {
     try {
       const res = await API.post("/auth/login", credentials);

@@ -14,6 +14,24 @@ app.use(cors());
 app.use(express.json());
 app.use(pinoHttp({ logger }));
 
+app.get("/health", (req, res) => {
+  console.log("health route reached");
+  const healthCheck = {
+    status: "UP",
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || "development",
+  };
+  try {
+    // Optional: Add database or external service checks here if needed
+    res.status(200).json(healthCheck);
+  } catch (error) {
+    healthCheck.status = "DOWN";
+    healthCheck.error = error.message;
+    res.status(503).json(healthCheck);
+  }
+});
+
 app.use("/api/auth", authRoutes);
 app.use("/api/notes", notesRoutes);
 app.use("/api/tags", tagsRoutes);
